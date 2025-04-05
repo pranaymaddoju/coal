@@ -62,20 +62,15 @@ lag_values = {
 for i in range(30):
     row = user_inputs.copy()
     row.update(lag_values)
-    X_input = pd.DataFrame([row])
+    features_order = model.feature_names_in_
+    X_input = pd.DataFrame([row])[features_order]
     y_pred = model.predict(X_input)[0]
     predictions.append(y_pred)
 
     # Update lag values for next iteration
-    lag_values = {
-        'lag_1': y_pred,
-        'lag_2': lag_values['lag_1'],
-        'lag_3': lag_values['lag_2'],
-        'lag_7': lag_values['lag_6'] if 'lag_6' in lag_values else lag_values['lag_7'],
-        'lag_14': lag_values['lag_13'] if 'lag_13' in lag_values else lag_values['lag_14'],
-    }
     for j in range(14, 0, -1):
         lag_values[f'lag_{j}'] = lag_values.get(f'lag_{j-1}', y_pred)
+    lag_values['lag_1'] = y_pred
 
 # Confidence interval (±2%)
 lower_bound = [p * 0.98 for p in predictions]
