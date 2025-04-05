@@ -15,6 +15,10 @@ model = joblib.load("xgb_model.joblib")
 df = pd.read_csv("merged_coal_externaldata.csv")
 df['Date'] = pd.to_datetime(df['Date'])
 
+# Drop columns not used during training
+unused_cols = ['Coal Richards Bay 6000kcal NAR fob current week avg, No time stamp, USD/t']
+df.drop(columns=[col for col in unused_cols if col in df.columns], inplace=True)
+
 # Add lag features
 def add_lag_features(df, lags=[1, 2, 3, 7, 14]):
     target_column = 'Coal Richards Bay 5500kcal NAR fob, London close, USD/t'
@@ -32,24 +36,25 @@ future_dates = pd.date_range(start=df['Date'].max() + timedelta(days=1), periods
 future_df = pd.concat([last_row]*30, ignore_index=True)
 future_df['Date'] = future_dates
 
+# Drop unused column from future_df too
+future_df.drop(columns=[col for col in unused_cols if col in future_df.columns], inplace=True)
+
 # Recompute lag columns on duplicated data
 for lag in [1, 2, 3, 7, 14]:
     future_df[f'lag_{lag}'] = last_row[f'lag_{lag}'].values[0]
 
 # Ensure only model-relevant features are used
 feature_cols = [
+    'lag_1', 'lag_2', 'lag_3', 'lag_7', 'lag_14',
     'Coal Richards Bay 4800kcal NAR fob, London close, USD/t',
     'Coal Richards Bay 5500kcal NAR fob, London close, USD/t',
     'Coal Richards Bay 5700kcal NAR fob, London close, USD/t',
     'Coal India 5500kcal NAR cfr, London close, USD/t',
-    'Crude Oil_Price',
-    'Brent Oil_Price',
-    'Dubai Crude_Price',
-    'Dutch TTF_Price',
-    'Natural Gas_Price',
-    'lag_1', 'lag_2', 'lag_3', 'lag_7', 'lag_14'
+    'Crude Oil_Price', 'Brent Oil_Price', 'Dubai Crude_Price',
+    'Dutch TTF_Price', 'Natural Gas_Price'
 ]
 
+# Align feature column order with model expectation
 X_future = future_df[feature_cols]
 
 # Predict future prices
