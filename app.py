@@ -29,9 +29,9 @@ def add_lag_features(df, lags=[1, 2, 3, 7, 14]):
 df = add_lag_features(df)
 df.dropna(inplace=True)
 
-# Prepare 30 future dates
+# Prepare future forecast loop
 future_dates = pd.date_range(start=df['Date'].max() + timedelta(days=1), periods=30)
-last_row = df.iloc[-1:].copy()
+last_known_price = df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-1]
 
 external_cols = [
     'Coal Richards Bay 4800kcal NAR fob, London close, USD/t',
@@ -42,38 +42,51 @@ external_cols = [
     'Dutch TTF_Price', 'Natural Gas_Price'
 ]
 
-# Input from user for external features
+# Sidebar input
 st.sidebar.header("External Factors Input")
 user_inputs = {}
 for col in external_cols:
-    user_inputs[col] = st.sidebar.number_input(col, value=float(last_row[col].values[0]))
+    user_inputs[col] = st.sidebar.number_input(col, value=float(df[col].iloc[-1]))
 
-# Create future DataFrame with user input and lag features
-future_df = pd.DataFrame([user_inputs] * 30)
-future_df['Date'] = future_dates
-for lag in [1, 2, 3, 7, 14]:
-    future_df[f'lag_{lag}'] = last_row[f'lag_{lag}'].values[0]
+# Initialize results storage
+predictions = []
+lag_values = {
+    'lag_1': df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-1],
+    'lag_2': df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-2],
+    'lag_3': df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-3],
+    'lag_7': df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-7],
+    'lag_14': df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-14],
+}
 
-# Define feature columns
-feature_cols = [
-    'lag_1', 'lag_2', 'lag_3', 'lag_7', 'lag_14',
-    'Coal Richards Bay 4800kcal NAR fob, London close, USD/t',
-    'Coal Richards Bay 5500kcal NAR fob, London close, USD/t',
-    'Coal Richards Bay 5700kcal NAR fob, London close, USD/t',
-    'Coal India 5500kcal NAR cfr, London close, USD/t',
-    'Crude Oil_Price', 'Brent Oil_Price', 'Dubai Crude_Price',
-    'Dutch TTF_Price', 'Natural Gas_Price'
-]
+# Forecast loop with dynamic lag updates
+for i in range(30):
+    row = user_inputs.copy()
+    row.update(lag_values)
+    X_input = pd.DataFrame([row])
+    y_pred = model.predict(X_input)[0]
+    predictions.append(y_pred)
 
-X_future = future_df[feature_cols]
+    # Update lag values for next iteration
+    lag_values = {
+        'lag_1': y_pred,
+        'lag_2': lag_values['lag_1'],
+        'lag_3': lag_values['lag_2'],
+        'lag_7': lag_values['lag_6'] if 'lag_6' in lag_values else lag_values['lag_7'],
+        'lag_14': lag_values['lag_13'] if 'lag_13' in lag_values else lag_values['lag_14'],
+    }
+    for j in range(14, 0, -1):
+        lag_values[f'lag_{j}'] = lag_values.get(f'lag_{j-1}', y_pred)
 
-# Predict future prices
-y_pred = model.predict(X_future)
+# Confidence interval (±2%)
+lower_bound = [p * 0.98 for p in predictions]
+upper_bound = [p * 1.02 for p in predictions]
 
-# Show results
+# Display results
 results = pd.DataFrame({
     "Date": future_dates,
-    "Forecasted Price": y_pred
+    "Forecasted Price": predictions,
+    "Lower Bound": lower_bound,
+    "Upper Bound": upper_bound
 })
 
 st.subheader("📈 30-Day Forecast")
