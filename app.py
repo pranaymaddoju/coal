@@ -64,7 +64,13 @@ for i in range(30):
     row = user_inputs.copy()
     row.update(lag_values)
     features_order = model.feature_names_in_
-    X_input = pd.DataFrame([row])[features_order]
+
+    missing_cols = [f for f in features_order if f not in row]
+    if missing_cols:
+        st.error(f"Missing required features for prediction: {missing_cols}")
+        st.stop()
+
+    X_input = pd.DataFrame([row], columns=features_order)
     y_pred = model.predict(X_input)[0]
     predictions.append(y_pred)
 
