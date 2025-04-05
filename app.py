@@ -36,8 +36,21 @@ future_df['Date'] = future_dates
 for lag in [1, 2, 3, 7, 14]:
     future_df[f'lag_{lag}'] = last_row[f'lag_{lag}'].values[0]
 
-# Drop Date before prediction
-X_future = future_df.drop(columns=['Date'])
+# Ensure only model-relevant features are used
+feature_cols = [
+    'Coal Richards Bay 4800kcal NAR fob, London close, USD/t',
+    'Coal Richards Bay 5500kcal NAR fob, London close, USD/t',
+    'Coal Richards Bay 5700kcal NAR fob, London close, USD/t',
+    'Coal India 5500kcal NAR cfr, London close, USD/t',
+    'Crude Oil_Price',
+    'Brent Oil_Price',
+    'Dubai Crude_Price',
+    'Dutch TTF_Price',
+    'Natural Gas_Price',
+    'lag_1', 'lag_2', 'lag_3', 'lag_7', 'lag_14'
+]
+
+X_future = future_df[feature_cols]
 
 # Predict future prices
 y_pred = model.predict(X_future)
