@@ -1,73 +1,53 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
-import xgboost as xgb
 from datetime import timedelta
 
-st.title("🔮 Coal Price Forecasting App")
-st.write("This app forecasts coal prices for the next 30 days based on external economic factors.")
+# Title
+st.title("Coal Price Forecasting App")
+st.write("This app forecasts coal prices for the next 30 days based on external economic indicators.")
 
 # Load trained model
 model = joblib.load("xgb_model.joblib")
 
-# Load base dataset (must be same dataset used during training)
+# Load base dataset (used during training)
 df = pd.read_csv("merged_coal_externaldata.csv")
 df['Date'] = pd.to_datetime(df['Date'])
 
 # Add lag features
 def add_lag_features(df, lags=[1, 2, 3, 7, 14]):
+    target_column = 'Coal Richards Bay 5500kcal NAR fob, London close, USD/t'
     for lag in lags:
-        df[f'lag_{lag}'] = df['coal_price'].shift(lag)
+        df[f'lag_{lag}'] = df[target_column].shift(lag)
     return df
 
 df = add_lag_features(df)
 df.dropna(inplace=True)
 
-# Get the latest row to generate future data
-last_known = df.iloc[-1]
-external_features = [
-    'Coal Richards Bay 4800kcal NAR fob, London close, USD/t',
-    'Coal Richards Bay 5500kcal NAR fob, London close, USD/t',
-    'Coal Richards Bay 5700kcal NAR fob, London close, USD/t',
-    'Coal India 5500kcal NAR cfr, London close, USD/t',
-    'Crude Oil_Price',
-    'Brent Oil_Price',
-    'Dubai Crude_Price',
-    'Dutch TTF_Price',
-    'Natural Gas_Price'
-]
+# Get latest row and generate 30 future rows with same external features
+last_row = df.iloc[-1:]
+future_dates = pd.date_range(start=df['Date'].max() + timedelta(days=1), periods=30)
 
-lags = ['lag_1', 'lag_2', 'lag_3', 'lag_7', 'lag_14']
-all_features = external_features + lags
+future_df = pd.concat([last_row]*30, ignore_index=True)
+future_df['Date'] = future_dates
 
-future_data = []
-current_date = last_known['Date']
+# Recompute lag columns on duplicated data
+for lag in [1, 2, 3, 7, 14]:
+    future_df[f'lag_{lag}'] = last_row[f'lag_{lag}'].values[0]
 
-# Generate 30-day forecasts
-for i in range(30):
-    row = last_known[external_features + lags].copy()
-    row['Date'] = current_date + timedelta(days=1)
-    pred_input = row[all_features].values.reshape(1, -1)
-    prediction = model.predict(pred_input)[0]
-    row['coal_price'] = prediction  # Needed for future lag values
-    future_data.append(row)
+# Drop Date before prediction
+X_future = future_df.drop(columns=['Date'])
 
-    # Update lag values for next iteration
-    for lag in lags:
-        days_back = int(lag.split('_')[1])
-        if i >= days_back:
-            row[lag] = future_data[i - days_back]['coal_price']
-        else:
-            row[lag] = last_known['coal_price']  # fallback
-
-    last_known = row.copy()
-    current_date = row['Date']
-
-# Create forecast dataframe
-forecast_df = pd.DataFrame(future_data)
-forecast_df = forecast_df[['Date', 'coal_price']].rename(columns={'coal_price': 'Forecasted Coal Price'})
+# Predict future prices
+y_pred = model.predict(X_future)
 
 # Show results
-st.subheader("📆 30-Day Forecast")
-st.dataframe(forecast_df)
-st.line_chart(forecast_df.set_index('Date'))
+results = pd.DataFrame({
+    "Date": future_dates,
+    "Forecasted Price": y_pred
+})
+
+st.subheader("📈 30-Day Forecast")
+st.dataframe(results)
+st.line_chart(results.set_index("Date"))
