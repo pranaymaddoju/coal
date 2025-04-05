@@ -21,7 +21,11 @@ keep_cols = [
     'Date',
     target_column,
     'Crude Oil_Price', 'Brent Oil_Price', 'Dubai Crude_Price',
-    'Natural Gas_Price'
+    'Natural Gas_Price',
+    'Coal Richards Bay 4800kcal NAR fob, London close, USD/t',
+    'Coal Richards Bay 5700kcal NAR fob, London close, USD/t',
+    'Coal India 5500kcal NAR cfr, London close, USD/t',
+    'Dutch TTF_Price'
 ]
 df = df[keep_cols]
 
@@ -65,10 +69,14 @@ for i in range(30):
     row.update(lag_values)
     features_order = model.feature_names_in_
 
+    # Fill in any missing features with recent values or 0
     missing_cols = [f for f in features_order if f not in row]
     if missing_cols:
-        st.error(f"Missing required features for prediction: {missing_cols}")
-        st.stop()
+        for col in missing_cols:
+            if col in df.columns:
+                row[col] = df[col].iloc[-1]  # Use last known value
+            else:
+                row[col] = 0  # Default to 0 if not available
 
     X_input = pd.DataFrame([row], columns=features_order)
     y_pred = model.predict(X_input)[0]
