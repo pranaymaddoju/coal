@@ -15,13 +15,18 @@ model = joblib.load("xgb_model.joblib")
 df = pd.read_csv("merged_coal_externaldata.csv")
 df['Date'] = pd.to_datetime(df['Date'])
 
-# Drop columns not used during training
-unused_cols = ['Coal Richards Bay 6000kcal NAR fob current week avg, No time stamp, USD/t']
-df.drop(columns=[col for col in unused_cols if col in df.columns], inplace=True)
+# Keep only one coal price column and relevant external factors
+target_column = 'Coal Richards Bay 5500kcal NAR fob, London close, USD/t'
+keep_cols = [
+    'Date',
+    target_column,
+    'Crude Oil_Price', 'Brent Oil_Price', 'Dubai Crude_Price',
+    'Natural Gas_Price'
+]
+df = df[keep_cols]
 
 # Add lag features
 def add_lag_features(df, lags=[1, 2, 3, 7, 14]):
-    target_column = 'Coal Richards Bay 5500kcal NAR fob, London close, USD/t'
     for lag in lags:
         df[f'lag_{lag}'] = df[target_column].shift(lag)
     return df
@@ -31,15 +36,11 @@ df.dropna(inplace=True)
 
 # Prepare future forecast loop
 future_dates = pd.date_range(start=df['Date'].max() + timedelta(days=1), periods=30)
-last_known_price = df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-1]
+last_known_price = df[target_column].iloc[-1]
 
 external_cols = [
-    'Coal Richards Bay 4800kcal NAR fob, London close, USD/t',
-    'Coal Richards Bay 5500kcal NAR fob, London close, USD/t',
-    'Coal Richards Bay 5700kcal NAR fob, London close, USD/t',
-    'Coal India 5500kcal NAR cfr, London close, USD/t',
-    'Crude Oil_Price', 'Brent Oil_Price', 'Dubai Crude_Price',
-    'Dutch TTF_Price', 'Natural Gas_Price'
+    target_column,
+    'Crude Oil_Price', 'Brent Oil_Price', 'Dubai Crude_Price', 'Natural Gas_Price'
 ]
 
 # Sidebar input
@@ -51,11 +52,11 @@ for col in external_cols:
 # Initialize results storage
 predictions = []
 lag_values = {
-    'lag_1': df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-1],
-    'lag_2': df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-2],
-    'lag_3': df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-3],
-    'lag_7': df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-7],
-    'lag_14': df['Coal Richards Bay 5500kcal NAR fob, London close, USD/t'].iloc[-14],
+    'lag_1': df[target_column].iloc[-1],
+    'lag_2': df[target_column].iloc[-2],
+    'lag_3': df[target_column].iloc[-3],
+    'lag_7': df[target_column].iloc[-7],
+    'lag_14': df[target_column].iloc[-14],
 }
 
 # Forecast loop with dynamic lag updates
