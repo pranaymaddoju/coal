@@ -42,21 +42,19 @@ external_cols = [
     'Dutch TTF_Price', 'Natural Gas_Price'
 ]
 
-# Duplicate last row and simulate changes in external features
-future_df = pd.DataFrame([last_row.iloc[0].copy()] * 30)
-future_df.reset_index(drop=True, inplace=True)
-future_df['Date'] = future_dates
-
-# Slightly vary external features to simulate realistic changes
+# Input from user for external features
+st.sidebar.header("External Factors Input")
+user_inputs = {}
 for col in external_cols:
-    noise = np.random.normal(0, 0.5, size=30)
-    future_df[col] = last_row[col].values[0] + noise
+    user_inputs[col] = st.sidebar.number_input(col, value=float(last_row[col].values[0]))
 
-# Recompute lag columns on future_df
+# Create future DataFrame with user input and lag features
+future_df = pd.DataFrame([user_inputs] * 30)
+future_df['Date'] = future_dates
 for lag in [1, 2, 3, 7, 14]:
     future_df[f'lag_{lag}'] = last_row[f'lag_{lag}'].values[0]
 
-# Ensure only model-relevant features are used
+# Define feature columns
 feature_cols = [
     'lag_1', 'lag_2', 'lag_3', 'lag_7', 'lag_14',
     'Coal Richards Bay 4800kcal NAR fob, London close, USD/t',
@@ -67,7 +65,6 @@ feature_cols = [
     'Dutch TTF_Price', 'Natural Gas_Price'
 ]
 
-# Align feature column order with model expectation
 X_future = future_df[feature_cols]
 
 # Predict future prices
